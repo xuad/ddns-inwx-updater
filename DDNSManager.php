@@ -14,35 +14,34 @@ require_once 'log/KLogger.php';
 require_once 'Helper.php';
 
 /**
- * Update der dynamischen IP
+ * Update dynamic ip adress
  * 
  * @author    Patrick Mosch
- * @copyright Patrick Mosch 2012
+ * @copyright Patrick Mosch 2012-2014
  */
 class DDNSManager
 {
-
 	/**
-	 * Configfile
+	 * Configuration file
 	 * @var string
 	 */
-	protected $iniFile = "config.ini";
+	protected $iniFile = ".config.ini";
 
 	/**
-	 * Accesskey 
+	 * Configuration key
 	 * @var string
 	 */
 	protected $configKey = "";
 
 	/**
-	 * Accesskey instantiate 
+	 * Access key
 	 * @var string
 	 */
 	protected $key = "";
 
 	/**
-	 * INWX API-Url
-	 * @var type 
+	 * INWX api url
+	 * @var string 
 	 */
 	protected $inwxUrl = "";
 
@@ -71,44 +70,50 @@ class DDNSManager
 	protected $inwxSubdomain = "";
 
 	/**
-	 * Logging
+	 * Log instance
 	 * @var KLogger-Object
 	 */
 	protected $logger;
 
 	/**
-	 * Old IP
+	 * Old ip
 	 * @var string
 	 */
 	protected $oldIP = "";
 
 	/**
-	 * New IP
+	 * New ip
 	 * @var string
 	 */
 	protected $newIP = "";
 
 	/**
-	 * Initialize the object
+	 * Initialize object
 	 */
 	public function __construct($key)
 	{
-		// Save accesskey
+		// Save access key
 		$this->key = $key;
 
-		// Load config
+		// Load configuration
 		$this->init();
 	}
 
 	/**
-	 * Load config and initialisize KLogger
+	 * Load config and initialize KLogger
 	 */
 	protected function init()
 	{
-		// Load configfile
+		// Check configuration file exists
+		if (!file_exists($this->iniFile))
+		{
+			return false;
+		}
+
+		// Load configuration
 		$ini = parse_ini_file($this->iniFile, TRUE);
 
-		// Load accesskey
+		// Load access key
 		$this->configKey = isset($ini["api"]["api_key"]) ? $this->validateConfigEntry($ini["api"]["api_key"]) : "";
 
 		// Load INWX-API-URL
@@ -138,7 +143,16 @@ class DDNSManager
 	 */
 	public function updateIP($ip)
 	{
-		$this->newIP = $ip;
+		// Check for empty ip string
+		if ($ip !== "")
+		{
+			$this->newIP = $ip;
+		}
+		else
+		{
+			$this->logger->LogError("IP string is empty");
+			return false;
+		}
 
 		// Check access
 		if (!$this->checkAccess())
@@ -167,72 +181,70 @@ class DDNSManager
 
 			if ($response['code'] == 1000)
 			{
-				if (strlen($this->newIP) > 0)
+				// Get the recordID
+				// ID is important for the update
+				$recordID = $response["resData"]["record"][0]["id"];
+
+				// Get old IP
+				$this->oldIP = $response["resData"]["record"][0]["content"];
+
+				// Update-Call
+				$object = "nameserver";
+				$method = "updateRecord";
+				$params = array();
+				$params['id'] = $recordID;
+				$params['content'] = $this->newIP;
+				$response = $domrobot->call($object, $method, $params);
+
+				// After successfully IP update well done
+				if ($response['code'] == 1000)
 				{
-					// Get the recordID
-					// ID is important for the update
-					$recordID = $response["resData"]["record"][0]["id"];
-
-					// Get old IP
-					$this->oldIP = $response["resData"]["record"][0]["content"];
-
-					// Update-Call
-					$object = "nameserver";
-					$method = "updateRecord";
-					$params = array();
-					$params['id'] = $recordID;
-					$params['content'] = $this->newIP;
-					$response = $domrobot->call($object, $method, $params);
-
-					// After successfully IP update well done
-					if ($response['code'] == 1000)
-					{
-						// Write some information in logfile
-						$this->logger->LogInfo("IP Update successfully! | Old IP: " . $this->oldIP . " | New IP: " . $this->newIP);
-						return true;
-					}
-					else
-					{
-						// Cant update IP
-						$this->logger->LogError("IP Update Error : " . $this->newIP);
-						return false;
-					}
+					// Write some information in logfile
+					$this->logger->LogInfo("IP update successfully! | Old IP: " . $this->oldIP . " | New IP: " . $this->newIP);
+					return true;
 				}
 				else
 				{
-					// New IP doesnt exists
-					$this->logger->LogError("New IP false : " . $this->newIP);
+					// Cant update IP
+					$this->logger->LogError("IP update error: " . $this->newIP);
 					return false;
 				}
 			}
 			else
 			{
 				// INWX login error
-				$this->logger->LogError("Cant login : " . $response);
+				$this->logger->LogError("Cant login: " . $response);
 				return false;
 			}
+		}
+		else if ($response['code'] == 2200)
+		{
+			// Authentification error
+			$this->logger->LogError("Wrong username or password!");
 		}
 	}
 
 	/**
-	 * Check correct accesskey
-	 * @param string $key Schlussen
-	 * @return boolean Zugriff
+	 * Check correct access key
+	 * @return boolean access allow
 	 */
 	protected function checkAccess()
 	{
+		// Compare keys
 		if ($this->key == $this->configKey)
 		{
 			return true;
 		}
 		else
 		{
+			// Wrong key
+			$this->logger->LogError("Wrong submitted key: " . $this->key);
 			return false;
 		}
 	}
 
 	/**
-	 * Validate inifile-entry
+	 * Validate ini file entry
 	 * @param string $entry
 	 * @return string
 	 */
@@ -248,7 +260,4 @@ class DDNSManager
 			return "";
 		}
 	}
-
 }
-
-?>

@@ -15,15 +15,24 @@ header('Content-type: text/plain; charset=utf-8');
 require_once 'DDNSManager.php';
 require_once 'Helper.php';
 
+// Some variables declaration
+$key = "";
+$ip = "";
+
 // Read accesskey
-$key = Helper::htmlencode($_GET['key']);
+if(isset($_GET['key']))
+{
+	$key = Helper::htmlencode($_GET['key']);
+}
 
 // Read ip
-$ip = Helper::htmlencode($_GET['ip']);
+if(isset($_GET['ip']))
+{
+	$ip = Helper::htmlencode($_GET['ip']);
+}
 
-// Initialize manager
+// Initialize ddnsmanager
 $ddns = new DDNSManager($key);
 
-// Update ID IP
+// Update ip
 $ddns->updateIP($ip);
-?>
